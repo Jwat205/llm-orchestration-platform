@@ -1,0 +1,201 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+      - 'fastapi-service/app/**/*.py'
+      - 'django-service/**/*.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+      - 'fastapi-service/app/**/*.py'
+      - 'django-service/**/*.py'
+  workflow_dispatch:
+
+jobs:
+  generate-api-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Python dependencies
+      run: |
+        pip install -r fastapi-service/requirements.txt
+        pip install -r django-service/requirements.txt
+        pip install sphinx sphinx-rtd-theme sphinxcontrib-openapi
+        pip install mkdocs mkdocs-material mkdocs-swagger-ui-tag
+
+    - name: Install Node dependencies
+      run: |
+        npm install -g @redocly/cli swagger-codegen-cli
+
+    - name: Generate OpenAPI spec
+      run: |
+        cd fastapi-service
+        python -c "
+        from app.main import app
+        import json
+        with open('../docs/api/openapi-spec.yaml', 'w') as f:
+            json.dump(app.openapi(), f, indent=2)
+        "
+
+    - name: Generate Django API docs
+      run: |
+        cd django-service
+        python manage.py spectacular --color --file ../docs/api/django-api-spec.yaml
+
+    - name: Validate OpenAPI specs
+      run: |
+        redocly lint docs/api/openapi-spec.yaml
+        redocly lint docs/api/django-api-spec.yaml
+
+    - name: Generate API documentation
+      run: |
+        redocly build-docs docs/api/openapi-spec.yaml \
+          --output docs/api/fastapi-docs.html \
+          --theme.openapi.theme=redoc
+
+        redocly build-docs docs/api/django-api-spec.yaml \
+          --output docs/api/django-docs.html \
+          --theme.openapi.theme=redoc
+
+    - name: Generate Python SDK
+      run: |
+        swagger-codegen-cli generate \
+          -i docs/api/openapi-spec.yaml \
+          -l python \
+          -o sdk/python \
+          --additional-properties=packageName=llm_api_client,packageVersion=1.0.0
+
+    - name: Generate TypeScript SDK
+      run: |
+        swagger-codegen-cli generate \
+          -i docs/api/openapi-spec.yaml \
+          -l typescript-fetch \
+          -o sdk/typescript \
+          --additional-properties=npmName=llm-api-client,npmVersion=1.0.0
+
+    - name: Build documentation site
+      run: |
+        cd docs
+        mkdocs build --strict
+
+    - name: Check documentation links
+      run: |
+        pip install linkchecker
+        linkchecker docs/site/ --ignore-url="^mailto:" --check-extern
+
+    - name: Generate code documentation
+      run: |
+        cd docs
+        sphinx-build -b html source build
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: |
+          docs/site/
+          docs/build/
+          docs/api/*.html
+          sdk/
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/site
+        cname: docs.llm-api.com
+
+  check-documentation:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install documentation linters
+      run: |
+        pip install doc8 pydocstyle sphinx-lint
+        npm install -g markdownlint-cli write-good
+
+    - name: Lint Markdown files
+      run: |
+        markdownlint docs/**/*.md README.md
+
+    - name: Check writing quality
+      run: |
+        write-good docs/**/*.md README.md || true
+
+    - name: Lint reStructuredText
+      run: |
+        doc8 docs/source/
+
+    - name: Check Python docstrings
+      run: |
+        pydocstyle fastapi-service/app/ --convention=google
+        pydocstyle django-service/ --convention=google
+
+    - name: Check documentation coverage
+      run: |
+        python scripts/check_doc_coverage.py
+
+    - name: Spell check
+      run: |
+        pip install pyspelling
+        pyspelling -c .pyspelling.yml
+
+  update-changelog:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Generate changelog
+      uses: conventional-changelog/conventional-changelog-config-spec@v2.1.0
+      with:
+        config-file-path: '.changlogrc.json'
+
+    - name: Update CHANGELOG.md
+      run: |
+        npx conventional-changelog-cli -p angular -i CHANGELOG.md -s -r 0
+
+    - name: Commit changelog
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CHANGELOG.md
+        git diff --staged --quiet || git commit -m "docs: update changelog [skip ci]"
+        git push

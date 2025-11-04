@@ -1,0 +1,71 @@
+.App {
+  text-align: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 30px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.App-main {
+  padding: 20px;
+  flex: 1;
+}
+
+.status-indicators {
+  margin: 20px 0;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.status-dot.green {
+  background-color: #4CAF50;
+}
+
+.status-dot.red {
+  background-color: #f44336;
+}
+
+.quick-links {
+  margin-top: 30px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.quick-links a {
+  color: #61dafb;
+  text-decoration: none;
+  padding: 10px 20px;
+  border: 1px solid #61dafb;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+.quick-links a:hover {
+  background-color: #61dafb;
+  color: #282c34;
+}

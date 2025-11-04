@@ -1,0 +1,207 @@
+# Artillery Load Testing Configuration for LLM Platform
+# High-performance load testing with WebSocket support
+
+config:
+  target: 'http://localhost:8001'
+  phases:
+    # Warm-up phase
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+    
+    # Ramp-up phase
+    - duration: 300
+      arrivalRate: 5
+      rampTo: 20
+      name: "Ramp-up"
+    
+    # Sustained load phase
+    - duration: 600
+      arrivalRate: 20
+      name: "Sustained load"
+    
+    # Peak load phase
+    - duration: 180
+      arrivalRate: 20
+      rampTo: 50
+      name: "Peak load"
+    
+    # Cool-down phase
+    - duration: 120
+      arrivalRate: 50
+      rampTo: 5
+      name: "Cool-down"
+
+  # Global configuration
+  timeout: 120
+  
+  # Custom variables
+  variables:
+    api_key: "test_api_key_12345"
+    models:
+      - "llama-2-7b"
+      - "llama-2-13b"
+      - "mistral-7b"
+    prompts:
+      - "Write a short story about a robot learning to paint."
+      - "Explain quantum computing in simple terms."
+      - "Create a recipe for chocolate chip cookies."
+      - "Describe the benefits of renewable energy."
+      - "Write a poem about the ocean."
+      - "Explain how machine learning works."
+      - "List 10 tips for better productivity."
+      - "Describe the history of the internet."
+      - "Write a letter to a friend about your vacation."
+      - "Explain the water cycle."
+    
+  # HTTP configuration
+  http:
+    timeout: 120
+    pool: 50
+  
+  # Plugins for enhanced metrics
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    
+  # Performance thresholds
+  ensure:
+    p99: 30000  # 99th percentile under 30 seconds
+    p95: 15000  # 95th percentile under 15 seconds
+    p50: 5000   # Median under 5 seconds
+    maxErrorRate: 5  # Error rate under 5%
+
+scenarios:
+  # Main scenario - mixed workload
+  - name: "Mixed LLM Workload"
+    weight: 60
+    flow:
+      # Health check
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+      
+      # Chat completion (most common)
+      - post:
+          url: "/v1/chat/completions"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+            Content-Type: "application/json"
+          json:
+            model: "{{ $randomString(models) }}"
+            messages:
+              - role: "user"
+                content: "{{ $randomString(prompts) }}"
+            max_tokens: "{{ $randomInt(50, 200) }}"
+            temperature: 0.7
+          expect:
+            - statusCode: 200
+            - hasProperty: "choices"
+          capture:
+            - json: "$.usage.completion_tokens"
+              as: "tokens_generated"
+            - json: "$.choices[0].message.content"
+              as: "response_content"
+      
+      # Think time
+      - think: "{{ $randomInt(2, 8) }}"
+      
+      # Embeddings (less frequent)
+      - post:
+          url: "/v1/embeddings"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+            Content-Type: "application/json"
+          json:
+            model: "text-embedding-ada-002"
+            input:
+              - "{{ $randomString(prompts) }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+          ifTrue: "{{ $randomInt(0, 100) < 30 }}"  # 30% chance
+
+  # Streaming scenario
+  - name: "Streaming Completions"
+    weight: 25
+    flow:
+      - post:
+          url: "/v1/chat/completions"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+            Content-Type: "application/json"
+          json:
+            model: "{{ $randomString(models) }}"
+            messages:
+              - role: "user"
+                content: "{{ $randomString(prompts) }}"
+            max_tokens: 150
+            temperature: 0.7
+            stream: true
+          expect:
+            - statusCode: 200
+            - contentType: "text/event-stream"
+      
+      - think: "{{ $randomInt(3, 10) }}"
+
+  # Function calling scenario
+  - name: "Function Calling"
+    weight: 10
+    flow:
+      - post:
+          url: "/v1/chat/completions"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+            Content-Type: "application/json"
+          json:
+            model: "llama-2-7b"
+            messages:
+              - role: "user"
+                content: "What's the weather like in {{ $randomString(['New York', 'London', 'Tokyo', 'Sydney']) }}?"
+            functions:
+              - name: "get_weather"
+                description: "Get current weather for a location"
+                parameters:
+                  type: "object"
+                  properties:
+                    location:
+                      type: "string"
+                      description: "City name"
+                  required: ["location"]
+            max_tokens: 100
+          expect:
+            - statusCode: 200
+      
+      - think: "{{ $randomInt(5, 15) }}"
+
+  # Model management scenario
+  - name: "Model Management"
+    weight: 5
+    flow:
+      # List models
+      - get:
+          url: "/v1/models"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+          capture:
+            - json: "$.data[0].id"
+              as: "first_model"
+      
+      # Get specific model info
+      - get:
+          url: "/v1/models/{{ first_model }}"
+          headers:
+            Authorization: "Bearer {{ api_key }}"
+          expect:
+            - statusCode: [200, 404]
+      
+      - think: "{{ $randomInt(10, 30) }}"
+
+# Processor functions for custom logic
+processor: "./artillery-processor.js"
+
+# Custom functions for data generation and processing

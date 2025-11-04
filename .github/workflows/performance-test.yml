@@ -1,0 +1,183 @@
+name: Performance Testing
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Test duration in seconds'
+        required: false
+        default: '300'
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '100'
+  push:
+    branches: [ main ]
+    paths:
+      - 'fastapi-service/**'
+      - 'django-service/**'
+      - 'tests/load/**'
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test123
+          POSTGRES_DB: llm_api_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Set up Node.js for k6
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Install Python dependencies
+      run: |
+        pip install -r fastapi-service/requirements.txt
+        pip install -r django-service/requirements.txt
+        pip install locust pytest-benchmark
+
+    - name: Set up environment
+      run: |
+        cp .env.example .env
+        echo "DATABASE_URL=postgresql://postgres:test123@localhost:5432/llm_api_test" >> .env
+        echo "REDIS_URL=redis://localhost:6379/0" >> .env
+
+    - name: Run Django migrations
+      run: |
+        cd django-service
+        python manage.py migrate --settings=config.settings.test
+
+    - name: Start services
+      run: |
+        cd fastapi-service
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        cd ../django-service
+        python manage.py runserver 0.0.0.0:8001 &
+        sleep 10
+
+    - name: Health check
+      run: |
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:8001/health/ || exit 1
+
+    - name: Run Locust load test
+      run: |
+        cd tests/load
+        locust --headless \
+          --users=${{ github.event.inputs.users || 100 }} \
+          --spawn-rate=10 \
+          --run-time=${{ github.event.inputs.duration || 300 }}s \
+          --host=http://localhost:8000 \
+          --html=report.html \
+          --csv=results
+
+    - name: Run k6 performance test
+      run: |
+        cd tests/load
+        k6 run --vus=${{ github.event.inputs.users || 100 }} \
+          --duration=${{ github.event.inputs.duration || 300 }}s \
+          --out json=k6-results.json \
+          k6-script.js
+
+    - name: Benchmark critical paths
+      run: |
+        cd tests/load
+        python -m pytest benchmark_tests.py --benchmark-json=benchmark-results.json
+
+    - name: Parse results
+      run: |
+        python scripts/parse_performance_results.py
+
+    - name: Check performance thresholds
+      run: |
+        python scripts/check_performance_thresholds.py \
+          --latency-p95 1000 \
+          --latency-p99 2000 \
+          --error-rate 0.01 \
+          --throughput 100
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: |
+          tests/load/report.html
+          tests/load/results*
+          tests/load/k6-results.json
+          tests/load/benchmark-results.json
+
+    - name: Comment performance results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('tests/load/performance-summary.json'));
+
+          const comment = `## Performance Test Results
+
+          | Metric | Value | Threshold | Status |
+          |--------|-------|-----------|---------|
+          | P95 Latency | ${results.p95_latency}ms | <1000ms | ${results.p95_latency < 1000 ? '✅' : '❌'} |
+          | P99 Latency | ${results.p99_latency}ms | <2000ms | ${results.p99_latency < 2000 ? '✅' : '❌'} |
+          | Throughput | ${results.throughput} req/s | >100 req/s | ${results.throughput > 100 ? '✅' : '❌'} |
+          | Error Rate | ${results.error_rate}% | <1% | ${results.error_rate < 1 ? '✅' : '❌'} |
+
+          [Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Fail if performance degraded
+      run: |
+        python scripts/check_performance_thresholds.py \
+          --latency-p95 1000 \
+          --latency-p99 2000 \
+          --error-rate 0.01 \
+          --throughput 100 \
+          --fail-on-threshold

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: postgresql
+description: PostgreSQL database for LLM API Platform
+type: application
+version: 0.1.0
+appVersion: "15.0"
+keywords:
+  - postgresql
+  - database
+  - sql
+home: https://www.postgresql.org/
+sources:
+  - https://github.com/postgres/postgres
+maintainers:
+  - name: LLM API Team
+    email: team@llm-api.com

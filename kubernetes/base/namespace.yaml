@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-platform
+  labels:
+    name: llm-platform
+    app.kubernetes.io/name: llm-platform
+    app.kubernetes.io/component: infrastructure
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-platform-monitoring
+  labels:
+    name: llm-platform-monitoring
+    app.kubernetes.io/name: llm-platform
+    app.kubernetes.io/component: monitoring

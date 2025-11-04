@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" elasticache describe-replication-groups --replication-group-id llm-redis --query \"ReplicationGroups[0].{Status:Status,Engine:Engine,NodeType:CacheNodeType,NumNodes:MemberClusters}\" --output table)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs update-service --cluster llm-microservices --service fastapi-service --desired-count 0)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs update-service --cluster llm-microservices --service django-service --desired-count 0)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs delete-service --cluster llm-microservices --service fastapi-service --force)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs delete-service --cluster llm-microservices --service django-service --force)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs delete-cluster --cluster llm-microservices)",
+      "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" elbv2 delete-load-balancer --load-balancer-arn arn:aws:elasticloadbalancing:us-east-1:164334672247:loadbalancer/app/llm-api-alb/e3d9e9f6ba103d8b)",
+      "Bash(dir:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

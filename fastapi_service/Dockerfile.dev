@@ -1,0 +1,27 @@
+FROM python:3.11
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt /app/
+RUN pip install -r requirements.txt
+
+# Install development dependencies
+RUN pip install uvicorn[standard] watchfiles debugpy
+
+# Copy application code
+COPY . /app/
+
+# Create directories for models and cache
+RUN mkdir -p /app/models /app/huggingface_cache /app/transformers_cache
+
+# Expose ports
+EXPOSE 8001 5679
+
+# Run with auto-reload for development and debug support
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]

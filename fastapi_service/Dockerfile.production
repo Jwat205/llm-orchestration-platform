@@ -1,0 +1,119 @@
+# Production-optimized FastAPI Dockerfile
+# Multi-stage build for ML inference workloads
+
+# Build stage
+FROM python:3.11-slim as builder
+
+# Set build arguments
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+# Set environment variables for build
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# Install system dependencies for building
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    g++ \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt /app/
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim as production
+
+# Labels for metadata
+LABEL maintainer="platform-team@company.com"
+LABEL description="FastAPI ML inference service for LLM API Platform"
+LABEL build-date=$BUILD_DATE
+LABEL vcs-ref=$VCS_REF
+LABEL version=$VERSION
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/home/appuser/.local/bin:$PATH"
+ENV PYTHONPATH="/app"
+ENV WORKERS=4
+ENV MAX_WORKERS=8
+ENV WORKER_CONNECTIONS=1000
+ENV WORKER_CLASS="uvicorn.workers.UvicornWorker"
+ENV MAX_REQUESTS=1000
+ENV MAX_REQUESTS_JITTER=100
+ENV TIMEOUT=300
+ENV KEEP_ALIVE=2
+ENV MODEL_CACHE_DIR="/app/models"
+ENV HF_HOME="/app/huggingface_cache"
+ENV TRANSFORMERS_CACHE="/app/transformers_cache"
+ENV TORCH_HOME="/app/torch_cache"
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python packages from builder stage
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Copy application code
+COPY --chown=appuser:appuser . /app/
+
+# Create necessary directories and set permissions
+RUN mkdir -p \
+    /app/models \
+    /app/huggingface_cache \
+    /app/transformers_cache \
+    /app/torch_cache \
+    /app/logs \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Pre-warm cache directories
+RUN python -c "import torch; import transformers; print('Dependencies loaded successfully')" || echo "Dependencies check completed"
+
+# Health check optimized for ML workloads
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Expose port
+EXPOSE 8001
+
+# Production command optimized for high-throughput ML inference
+CMD ["gunicorn", "app.main:app", \
+     "--bind", "0.0.0.0:8001", \
+     "--workers", "4", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--worker-connections", "1000", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100", \
+     "--timeout", "300", \
+     "--keep-alive", "2", \
+     "--log-level", "info", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--preload"]

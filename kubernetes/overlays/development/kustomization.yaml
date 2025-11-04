@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: llm-api-dev
+
+resources:
+  - ../../base
+  - ../../services
+
+namePrefix: dev-
+
+commonLabels:
+  environment: development
+  tier: dev
+
+images:
+  - name: llm-api/django
+    newTag: dev
+  - name: llm-api/fastapi
+    newTag: dev
+
+replicas:
+  - name: django-deployment
+    count: 1
+  - name: fastapi-deployment
+    count: 1
+
+configMapGenerator:
+  - name: dev-config
+    literals:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_POOL_SIZE=5
+      - REDIS_POOL_SIZE=10
+      - MAX_WORKERS=2
+
+patchesStrategicMerge:
+  - resources.yaml

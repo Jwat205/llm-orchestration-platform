@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: llm-api-staging
+
+resources:
+  - ../../base
+  - ../../services
+
+namePrefix: staging-
+
+commonLabels:
+  environment: staging
+  tier: staging
+
+images:
+  - name: llm-api/django
+    newTag: staging
+  - name: llm-api/fastapi
+    newTag: staging
+
+replicas:
+  - name: django-deployment
+    count: 2
+  - name: fastapi-deployment
+    count: 3
+
+configMapGenerator:
+  - name: staging-config
+    literals:
+      - ENVIRONMENT=staging
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_POOL_SIZE=10
+      - REDIS_POOL_SIZE=20
+      - MAX_WORKERS=4
+
+patchesStrategicMerge:
+  - resources.yaml

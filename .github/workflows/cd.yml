@@ -1,0 +1,168 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    branches: [main]
+    types: [completed]
+
+env:
+  KUBERNETES_NAMESPACE: llm-platform
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: 'v3.12.0'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > ~/.kube/config
+        kubectl config use-context staging
+    
+    - name: Deploy to Staging
+      run: |
+        helm upgrade --install llm-platform-staging ./helm-chart \
+          --namespace ${{ env.KUBERNETES_NAMESPACE }}-staging \
+          --create-namespace \
+          --values ./helm-chart/values-staging.yaml \
+          --set image.django.tag=${{ github.sha }} \
+          --set image.fastapi.tag=${{ github.sha }} \
+          --set image.fastapiGpu.tag=gpu-${{ github.sha }} \
+          --wait --timeout=10m
+    
+    - name: Verify deployment
+      run: |
+        kubectl wait --for=condition=available --timeout=300s \
+          deployment/llm-platform-staging-django \
+          deployment/llm-platform-staging-fastapi \
+          -n ${{ env.KUBERNETES_NAMESPACE }}-staging
+    
+    - name: Run smoke tests
+      run: |
+        kubectl run smoke-test --rm -i --restart=Never \
+          --image=curlimages/curl:latest \
+          --namespace=${{ env.KUBERNETES_NAMESPACE }}-staging \
+          -- curl -f http://llm-platform-staging-fastapi:8001/health
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: 'v3.12.0'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+        kubectl config use-context production
+    
+    - name: Database Migration Check
+      run: |
+        # Check if there are pending migrations
+        kubectl create job migration-check-${{ github.sha }} \
+          --from=deployment/llm-platform-django \
+          --namespace=${{ env.KUBERNETES_NAMESPACE }} \
+          --dry-run=client -o yaml | \
+        kubectl apply -f -
+        
+        kubectl wait --for=condition=complete --timeout=300s \
+          job/migration-check-${{ github.sha }} \
+          -n ${{ env.KUBERNETES_NAMESPACE }}
+    
+    - name: Deploy to Production
+      run: |
+        helm upgrade --install llm-platform ./helm-chart \
+          --namespace ${{ env.KUBERNETES_NAMESPACE }} \
+          --values ./helm-chart/values-prod.yaml \
+          --set image.django.tag=${{ github.sha }} \
+          --set image.fastapi.tag=${{ github.sha }} \
+          --set image.fastapiGpu.tag=gpu-${{ github.sha }} \
+          --wait --timeout=15m \
+          --atomic
+    
+    - name: Verify deployment
+      run: |
+        kubectl wait --for=condition=available --timeout=600s \
+          deployment/llm-platform-django \
+          deployment/llm-platform-fastapi \
+          -n ${{ env.KUBERNETES_NAMESPACE }}
+    
+    - name: Run health checks
+      run: |
+        # Wait for services to be ready
+        sleep 30
+        
+        # Check Django health
+        kubectl run django-health-check --rm -i --restart=Never \
+          --image=curlimages/curl:latest \
+          --namespace=${{ env.KUBERNETES_NAMESPACE }} \
+          -- curl -f http://llm-platform-django:8000/health/
+        
+        # Check FastAPI health
+        kubectl run fastapi-health-check --rm -i --restart=Never \
+          --image=curlimages/curl:latest \
+          --namespace=${{ env.KUBERNETES_NAMESPACE }} \
+          -- curl -f http://llm-platform-fastapi:8001/health
+    
+    - name: Update deployment status
+      if: success()
+      run: |
+        echo "Deployment successful at $(date)"
+        kubectl annotate deployment llm-platform-django \
+          deployment.kubernetes.io/revision="${{ github.sha }}" \
+          -n ${{ env.KUBERNETES_NAMESPACE }}
+        kubectl annotate deployment llm-platform-fastapi \
+          deployment.kubernetes.io/revision="${{ github.sha }}" \
+          -n ${{ env.KUBERNETES_NAMESPACE }}
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    
+    steps:
+    - name: Notify on success
+      if: needs.deploy-production.result == 'success'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: "✅ LLM Platform deployment to production successful!"
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+    
+    - name: Notify on failure
+      if: needs.deploy-production.result == 'failure'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        text: "❌ LLM Platform deployment to production failed!"
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}

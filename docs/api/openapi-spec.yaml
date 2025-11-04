@@ -1,0 +1,701 @@
+openapi: 3.0.3
+info:
+  title: LLM Platform API
+  description: |
+    Enterprise-grade Large Language Model API platform providing OpenAI-compatible endpoints
+    for chat completions, embeddings, function calling, and more.
+    
+    ## Features
+    - OpenAI-compatible API endpoints
+    - Multiple LLM model support (GPT, Claude, Llama, etc.)
+    - Streaming responses
+    - Function calling capabilities
+    - Embeddings and semantic search
+    - Enterprise security and authentication
+    - Rate limiting and usage tracking
+    - Fine-tuning and model management
+    
+    ## Authentication
+    All API requests require authentication using API keys. Include your API key in the
+    Authorization header:
+    ```
+    Authorization: Bearer your_api_key_here
+    ```
+    
+    ## Rate Limits
+    Rate limits are enforced per API key:
+    - Free tier: 20 requests/minute
+    - Pro tier: 3,500 requests/minute  
+    - Enterprise: Custom limits
+    
+    ## Error Handling
+    The API uses conventional HTTP response codes and returns detailed error information
+    in JSON format.
+  version: 1.0.0
+  contact:
+    name: LLM Platform Team
+    email: support@llm-platform.com
+    url: https://docs.llm-platform.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://llm-platform.com/terms
+
+servers:
+  - url: https://api.llm-platform.com
+    description: Production server
+  - url: https://staging-api.llm-platform.com
+    description: Staging server
+  - url: http://localhost:8001
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check API health status
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /v1/models:
+    get:
+      summary: List models
+      description: Lists the currently available models
+      tags: [Models]
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Model'
+
+  /v1/chat/completions:
+    post:
+      summary: Create chat completion
+      description: |
+        Creates a model response for the given chat conversation.
+        Supports both streaming and non-streaming responses.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+            examples:
+              simple_chat:
+                summary: Simple chat completion
+                value:
+                  model: gpt-3.5-turbo
+                  messages:
+                    - role: user
+                      content: "Hello, how are you?"
+                  max_tokens: 150
+              function_calling:
+                summary: Function calling example
+                value:
+                  model: gpt-3.5-turbo
+                  messages:
+                    - role: user
+                      content: "What's the weather like in San Francisco?"
+                  functions:
+                    - name: get_weather
+                      description: Get current weather for a location
+                      parameters:
+                        type: object
+                        properties:
+                          location:
+                            type: string
+                            description: The city and state
+                        required: [location]
+              streaming:
+                summary: Streaming response
+                value:
+                  model: gpt-3.5-turbo
+                  messages:
+                    - role: user
+                      content: "Write a short story"
+                  max_tokens: 300
+                  stream: true
+      responses:
+        '200':
+          description: Chat completion response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events for streaming responses
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimit'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/embeddings:
+    post:
+      summary: Create embeddings
+      description: Get vector representations of input text
+      tags: [Embeddings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbeddingRequest'
+            examples:
+              single_text:
+                summary: Single text embedding
+                value:
+                  model: text-embedding-ada-002
+                  input: "The quick brown fox jumps over the lazy dog"
+              multiple_texts:
+                summary: Multiple text embeddings
+                value:
+                  model: text-embedding-ada-002
+                  input: 
+                    - "First document to embed"
+                    - "Second document to embed"
+                    - "Third document to embed"
+      responses:
+        '200':
+          description: Embedding response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimit'
+
+  /v1/fine-tuning/jobs:
+    get:
+      summary: List fine-tuning jobs
+      description: List your organization's fine-tuning jobs
+      tags: [Fine-tuning]
+      parameters:
+        - name: after
+          in: query
+          description: Identifier for the last job from the previous pagination request
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of fine-tuning jobs to retrieve
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of fine-tuning jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FineTuningJob'
+                  has_more:
+                    type: boolean
+    
+    post:
+      summary: Create fine-tuning job
+      description: Creates a job that fine-tunes a specified model
+      tags: [Fine-tuning]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFineTuningJobRequest'
+      responses:
+        '200':
+          description: Fine-tuning job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FineTuningJob'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: |
+        API key authentication. Include your API key in the Authorization header:
+        `Authorization: Bearer your_api_key_here`
+
+  schemas:
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Model identifier
+          example: gpt-3.5-turbo
+        object:
+          type: string
+          example: model
+        created:
+          type: integer
+          description: Unix timestamp of model creation
+        owned_by:
+          type: string
+          description: Organization that owns the model
+          example: openai
+        permission:
+          type: array
+          items:
+            type: object
+        root:
+          type: string
+          description: Root model identifier
+        parent:
+          type: string
+          nullable: true
+          description: Parent model identifier
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, function]
+          description: The role of the message author
+        content:
+          type: string
+          nullable: true
+          description: The contents of the message
+        name:
+          type: string
+          description: The name of the author of this message
+        function_call:
+          type: object
+          description: Function call information
+          properties:
+            name:
+              type: string
+              description: Function name
+            arguments:
+              type: string
+              description: Function arguments as JSON string
+
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          description: ID of the model to use
+          example: gpt-3.5-turbo
+        messages:
+          type: array
+          description: List of messages comprising the conversation
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          minItems: 1
+        functions:
+          type: array
+          description: List of functions the model may call
+          items:
+            $ref: '#/components/schemas/FunctionDefinition'
+        function_call:
+          oneOf:
+            - type: string
+              enum: [none, auto]
+            - type: object
+              properties:
+                name:
+                  type: string
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+          description: Sampling temperature
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 1
+          description: Nucleus sampling parameter
+        n:
+          type: integer
+          minimum: 1
+          maximum: 128
+          default: 1
+          description: Number of completions to generate
+        stream:
+          type: boolean
+          default: false
+          description: Whether to stream partial results
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+              maxItems: 4
+          description: Stop sequences
+        max_tokens:
+          type: integer
+          minimum: 1
+          description: Maximum number of tokens to generate
+        presence_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          default: 0
+        frequency_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          default: 0
+        logit_bias:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: -100
+            maximum: 100
+        user:
+          type: string
+          description: Unique identifier for the end-user
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the completion
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+          description: Unix timestamp of completion creation
+        model:
+          type: string
+          description: Model used for completion
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatChoice'
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    ChatChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: Choice index
+        message:
+          $ref: '#/components/schemas/ChatMessage'
+        finish_reason:
+          type: string
+          enum: [stop, length, function_call, content_filter]
+          description: Reason why the completion finished
+
+    FunctionDefinition:
+      type: object
+      required: [name, description, parameters]
+      properties:
+        name:
+          type: string
+          description: Function name
+        description:
+          type: string
+          description: Function description
+        parameters:
+          type: object
+          description: Function parameters as JSON Schema
+
+    Usage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+          description: Number of tokens in the prompt
+        completion_tokens:
+          type: integer
+          description: Number of tokens in the completion
+        total_tokens:
+          type: integer
+          description: Total number of tokens used
+
+    EmbeddingRequest:
+      type: object
+      required: [model, input]
+      properties:
+        model:
+          type: string
+          description: ID of the model to use
+          example: text-embedding-ada-002
+        input:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Input text to embed
+        user:
+          type: string
+          description: Unique identifier for the end-user
+
+    EmbeddingResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Embedding'
+        model:
+          type: string
+          description: Model used for embeddings
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    Embedding:
+      type: object
+      properties:
+        object:
+          type: string
+          example: embedding
+        embedding:
+          type: array
+          items:
+            type: number
+          description: Embedding vector
+        index:
+          type: integer
+          description: Index of the embedding
+
+    CreateFineTuningJobRequest:
+      type: object
+      required: [model, training_file]
+      properties:
+        model:
+          type: string
+          description: Name of the model to fine-tune
+        training_file:
+          type: string
+          description: ID of uploaded training file
+        validation_file:
+          type: string
+          description: ID of uploaded validation file
+        hyperparameters:
+          type: object
+          properties:
+            n_epochs:
+              oneOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 50
+                - type: string
+                  enum: [auto]
+              default: auto
+            batch_size:
+              oneOf:
+                - type: integer
+                  minimum: 1
+                - type: string
+                  enum: [auto]
+              default: auto
+            learning_rate_multiplier:
+              oneOf:
+                - type: number
+                  minimum: 0.02
+                  maximum: 2
+                - type: string
+                  enum: [auto]
+              default: auto
+        suffix:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: String to append to fine-tuned model name
+
+    FineTuningJob:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Fine-tuning job ID
+        object:
+          type: string
+          example: fine_tuning.job
+        created_at:
+          type: integer
+          description: Unix timestamp of job creation
+        finished_at:
+          type: integer
+          nullable: true
+          description: Unix timestamp of job completion
+        model:
+          type: string
+          description: Base model being fine-tuned
+        fine_tuned_model:
+          type: string
+          nullable: true
+          description: Name of fine-tuned model
+        organization_id:
+          type: string
+          description: Organization ID
+        status:
+          type: string
+          enum: [validating_files, queued, running, succeeded, failed, cancelled]
+        hyperparameters:
+          type: object
+        training_file:
+          type: string
+          description: Training file ID
+        validation_file:
+          type: string
+          nullable: true
+          description: Validation file ID
+        result_files:
+          type: array
+          items:
+            type: string
+        trained_tokens:
+          type: integer
+          nullable: true
+          description: Number of tokens processed
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Human-readable error message
+            type:
+              type: string
+              description: Error type
+            param:
+              type: string
+              nullable: true
+              description: Parameter that caused the error
+            code:
+              type: string
+              nullable: true
+              description: Error code
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Invalid request format"
+              type: "invalid_request_error"
+              param: null
+              code: null
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Invalid API key provided"
+              type: "invalid_request_error"
+              param: null
+              code: "invalid_api_key"
+
+    RateLimit:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Rate limit exceeded"
+              type: "rate_limit_error"
+              param: null
+              code: "rate_limit_exceeded"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Internal server error"
+              type: "server_error"
+              param: null
+              code: "internal_error"
+
+tags:
+  - name: System
+    description: System health and status endpoints
+  - name: Models
+    description: Model management and listing
+  - name: Chat
+    description: Chat completion endpoints
+  - name: Embeddings
+    description: Text embedding endpoints
+  - name: Fine-tuning
+    description: Model fine-tuning endpoints
+
+externalDocs:
+  description: Full API Documentation
+  url: https://docs.llm-platform.com

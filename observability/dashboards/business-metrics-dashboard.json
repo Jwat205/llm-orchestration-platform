@@ -1,0 +1,341 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "LLM Platform - Business Metrics Dashboard",
+    "tags": ["business", "revenue", "users", "kpi"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Revenue Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(llm_platform_revenue_total)",
+            "refId": "A",
+            "legendFormat": "Total Revenue"
+          },
+          {
+            "expr": "sum(rate(llm_platform_revenue_total[24h]))",
+            "refId": "B",
+            "legendFormat": "Daily Revenue"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "value"
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Active Subscriptions",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum(llm_platform_active_subscriptions) by (tier)",
+            "refId": "A",
+            "legendFormat": "{{tier}}"
+          }
+        ],
+        "options": {
+          "displayLabels": ["name", "value", "percent"],
+          "pieType": "donut"
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "User Growth",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "llm_platform_daily_active_users",
+            "refId": "A",
+            "legendFormat": "Daily Active Users"
+          },
+          {
+            "expr": "llm_platform_monthly_active_users",
+            "refId": "B",
+            "legendFormat": "Monthly Active Users"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Users",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "API Usage by Tier",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_api_calls_total[5m])) by (user_tier)",
+            "refId": "A",
+            "legendFormat": "{{user_tier}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Calls/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Token Processing Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_tokens_processed_total[5m])) by (model)",
+            "refId": "A",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Tokens/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Revenue by Subscription Tier",
+        "type": "bargraph",
+        "targets": [
+          {
+            "expr": "sum(llm_platform_revenue_total) by (subscription_tier)",
+            "refId": "A",
+            "legendFormat": "{{subscription_tier}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "Churn Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(llm_platform_churn_rate)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 10}
+              ]
+            },
+            "unit": "percent",
+            "max": 20
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Trial Conversion Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_trial_conversions_total[7d])) / sum(rate(user_trials_started_total[7d])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 10},
+                {"color": "green", "value": 20}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "Cost Analysis",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_compute_costs_total[1h])) by (resource_type)",
+            "refId": "A",
+            "legendFormat": "{{resource_type}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Cost/hour ($)",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "Cost per Token by Model",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "llm_platform_cost_per_token",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "model": "Model",
+                "tier": "Tier",
+                "Value": "Cost per Token ($)"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 11,
+        "title": "Feature Usage Heatmap",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_feature_usage_total[1h])) by (feature_name)",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 12,
+        "title": "User Satisfaction",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(llm_platform_user_ratings_total) by (rating)",
+            "refId": "A",
+            "legendFormat": "{{rating}} stars"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Rating Count",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      },
+      {
+        "id": 13,
+        "title": "Support Ticket Trends",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_support_tickets_total[1h])) by (category)",
+            "refId": "A",
+            "legendFormat": "{{category}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Tickets/hour",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40}
+      },
+      {
+        "id": 14,
+        "title": "Model Accuracy Scores",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "llm_platform_model_accuracy_score",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.7},
+                {"color": "green", "value": 0.85}
+              ]
+            },
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40}
+      },
+      {
+        "id": 15,
+        "title": "Business Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(llm_platform_business_errors_total[5m])) by (error_type)",
+            "refId": "A",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Errors/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 48}
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "refresh": "1m",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

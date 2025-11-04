@@ -1,0 +1,33 @@
+# Copy this file to terraform.tfvars and fill in your values
+# cp terraform.tfvars.example terraform.tfvars
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Database Configuration
+db_password = "your-secure-password-here"  # Change this to a secure password
+
+# Container Configuration
+# Update this with your actual ECR URI after running build-and-push.bat
+ecr_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/llm-api:latest"
+
+# Environment
+environment = "production"
+
+# Scaling Configuration
+min_capacity = 2
+max_capacity = 10
+desired_capacity = 3
+
+# Instance Types
+ecs_cpu = 1024
+ecs_memory = 2048
+db_instance_class = "db.t3.medium"
+redis_node_type = "cache.t3.medium"
+
+# Monitoring
+enable_detailed_monitoring = true
+log_retention_days = 30
+
+# Alerts
+alert_email = "your-email@example.com"

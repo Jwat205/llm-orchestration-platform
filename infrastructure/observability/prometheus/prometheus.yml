@@ -1,0 +1,156 @@
+# Prometheus Configuration for LLM Platform
+# Metrics collection and monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'llm-platform'
+    environment: '${ENVIRONMENT:development}'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alert_rules/*.yml"
+  - "recording_rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # FastAPI applications
+  - job_name: 'fastapi-main'
+    static_configs:
+      - targets: ['fastapi-main:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  - job_name: 'fastapi-graph'
+    static_configs:
+      - targets: ['fastapi-graph:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'fastapi-document'
+    static_configs:
+      - targets: ['fastapi-document:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Django applications
+  - job_name: 'django-training'
+    static_configs:
+      - targets: ['django-training:8003']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'django-billing'
+    static_configs:
+      - targets: ['django-billing:8004']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'django-security'
+    static_configs:
+      - targets: ['django-security:8005']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # PostgreSQL metrics
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # GPU metrics (if available)
+  - job_name: 'nvidia-gpu'
+    static_configs:
+      - targets: ['gpu-exporter:9835']
+    scrape_interval: 10s
+
+  # Elasticsearch metrics
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+    scrape_interval: 30s
+
+  # Jaeger metrics
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger-query:16687']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Kubernetes metrics (if running in k8s)
+  - job_name: 'kubernetes-apiservers'
+    kubernetes_sd_configs:
+      - role: endpoints
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+
+  # Custom LLM model metrics
+  - job_name: 'llm-models'
+    static_configs:
+      - targets: ['model-server:9999']
+    metrics_path: '/model/metrics'
+    scrape_interval: 10s
+    honor_labels: true
+
+  # Load balancer metrics
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+    scrape_interval: 15s
+
+# Remote write configuration (for long-term storage)
+remote_write:
+  - url: "http://victoria-metrics:8428/api/v1/write"
+    queue_config:
+      max_samples_per_send: 1000
+      batch_send_deadline: 5s
+      min_shards: 1
+      max_shards: 200
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus/data
+    retention.time: 7d
+    retention.size: 50GB
+    no-lockfile: false
+    wal-compression: true
+
+# Global limits
+global_config:
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  rule_query_sample_limit: 1000000
+  rule_query_timeout: 30s

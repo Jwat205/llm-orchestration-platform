@@ -1,0 +1,97 @@
+# Production Terraform Variables for LLM API Platform
+# Copy this file to terraform.tfvars and customize for your deployment
+
+# Basic Configuration
+aws_region      = "us-east-1"
+environment     = "production"
+project_name    = "llm-api-platform"
+
+# Database Configuration - Secure password required
+db_password     = "CHANGE_THIS_SECURE_PASSWORD_123!"
+
+# ECS Configuration for High Performance
+django_cpu      = 1024    # 1 vCPU
+django_memory   = 2048    # 2 GB RAM
+fastapi_cpu     = 2048    # 2 vCPU for ML inference
+fastapi_memory  = 4096    # 4 GB RAM for model caching
+
+# Auto Scaling Configuration for 1000+ req/sec
+django_min_capacity     = 3     # Minimum instances
+django_max_capacity     = 15    # Maximum instances
+fastapi_min_capacity    = 5     # Minimum instances (ML workloads)
+fastapi_max_capacity    = 25    # Maximum instances
+
+# Database Configuration for High Availability
+db_instance_class           = "db.r6g.xlarge"    # High-performance instance
+db_allocated_storage        = 200                # Initial storage (GB)
+db_max_allocated_storage    = 2000               # Max auto-scaling storage (GB)
+db_backup_retention_period  = 14                 # Backup retention (days)
+enable_db_read_replica      = true               # Enable read replica
+
+# Redis Configuration for 70%+ Cache Hit Rate
+redis_node_type         = "cache.r6g.large"     # High-memory instance
+redis_num_cache_clusters = 3                    # Multi-AZ deployment
+
+# Monitoring Configuration
+log_retention_days                      = 30    # CloudWatch logs retention
+enable_container_insights               = true  # ECS insights
+enable_performance_insights             = true  # RDS insights
+performance_insights_retention_period   = 7     # PI retention
+
+# Security Configuration
+enable_waf                  = true               # Web Application Firewall
+waf_rate_limit             = 2000               # Requests per 5 minutes per IP
+enable_encryption_at_rest   = true               # Encrypt data at rest
+enable_encryption_in_transit = true              # Encrypt data in transit
+
+# Auto Scaling Thresholds for <100ms Latency
+cpu_scale_out_threshold     = 60    # CPU % to scale out
+memory_scale_out_threshold  = 75    # Memory % to scale out
+scale_out_cooldown         = 180    # Faster scaling for high traffic
+scale_in_cooldown          = 300    # Conservative scale-in
+
+# Cost Optimization
+enable_spot_instances           = false  # Don't use spot for production
+enable_s3_lifecycle_policies    = true   # Enable S3 cost optimization
+
+# Alert Configuration
+alert_email_endpoints = [
+    # "ops-team@company.com",
+    # "platform-team@company.com"
+]
+
+# Domain Configuration (Optional)
+# domain_name = "api.yourdomain.com"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT_ID"
+# enable_https_redirect = true
+
+# Common Tags
+common_tags = {
+    Project     = "llm-api-platform"
+    Environment = "production"
+    ManagedBy   = "terraform"
+    Owner       = "platform-team"
+    Purpose     = "enterprise-llm-api"
+    CostCenter  = "engineering"
+}
+
+# Advanced Configuration
+availability_zones = []  # Use all AZs in region by default
+
+# Performance Targets Configuration
+# These variables help document the infrastructure's capabilities
+# Actual values are configured through the infrastructure resources above
+
+# Target Performance Metrics:
+# - Concurrent Requests: 1,000+ req/sec
+# - Response Time: <100ms (excluding model inference)
+# - Uptime: 99.5%
+# - Monthly Requests: 1M+
+# - Cache Hit Rate: 70%+
+
+# Infrastructure Scaling Capabilities:
+# - ALB: Handles millions of requests
+# - ECS Fargate: Auto-scales 3-25 FastAPI instances
+# - RDS: r6g.xlarge with read replica
+# - ElastiCache: 3-node Redis cluster
+# - Multi-AZ deployment for high availability

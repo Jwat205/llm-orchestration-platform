@@ -1,0 +1,101 @@
+# Elasticsearch Configuration for LLM Platform
+# High-performance log aggregation and search
+
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: llm-elasticsearch
+    environment:
+      - node.name=llm-elasticsearch
+      - cluster.name=llm-platform-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - action.destructive_requires_name=false
+      # Performance optimizations
+      - indices.memory.index_buffer_size=40%
+      - indices.memory.min_index_buffer_size=96mb
+      - thread_pool.write.queue_size=1000
+      - thread_pool.search.queue_size=1000
+      - cluster.routing.allocation.disk.threshold_enabled=true
+      - cluster.routing.allocation.disk.watermark.low=85%
+      - cluster.routing.allocation.disk.watermark.high=90%
+      - cluster.routing.allocation.disk.watermark.flood_stage=95%
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 4g
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - ./elasticsearch/config/log4j2.properties:/usr/share/elasticsearch/config/log4j2.properties:ro
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - llm-observability
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # Elasticsearch cluster node 2 (for production)
+  elasticsearch-2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: llm-elasticsearch-2
+    environment:
+      - node.name=llm-elasticsearch-2
+      - cluster.name=llm-platform-cluster
+      - discovery.seed_hosts=elasticsearch
+      - cluster.initial_master_nodes=llm-elasticsearch,llm-elasticsearch-2
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - node.roles=data,ingest
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 4g
+    volumes:
+      - elasticsearch_data_2:/usr/share/elasticsearch/data
+    networks:
+      - llm-observability
+    depends_on:
+      - elasticsearch
+    profiles:
+      - production
+    restart: unless-stopped
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  elasticsearch_data_2:
+    driver: local
+
+networks:
+  llm-observability:
+    external: true

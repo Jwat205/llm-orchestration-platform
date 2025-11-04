@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-gpu-deployment
+  namespace: llm-platform
+  labels:
+    app: fastapi-gpu
+    component: api-gpu
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-gpu
+  template:
+    metadata:
+      labels:
+        app: fastapi-gpu
+        component: api-gpu
+    spec:
+      nodeSelector:
+        accelerator: nvidia-tesla-v100
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: fastapi-gpu
+        image: llm-platform/fastapi-service:gpu
+        ports:
+        - containerPort: 8001
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: GPU_MEMORY_FRACTION
+          value: "0.8"
+        - name: DATABASE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: llm-platform-config
+              key: DATABASE_HOST
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: llm-platform-secrets
+              key: DATABASE_USER
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: llm-platform-secrets
+              key: DATABASE_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: llm-platform-config
+              key: REDIS_HOST
+        - name: HUGGINGFACE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: model-secrets
+              key: HUGGINGFACE_TOKEN
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2000m"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "16Gi"
+            cpu: "4000m"
+            nvidia.com/gpu: 1
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 120
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+        - name: gpu-cache
+          mountPath: /tmp/gpu-cache
+      volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: model-cache-pvc
+      - name: gpu-cache
+        emptyDir:
+          sizeLimit: 50Gi
+      imagePullSecrets:
+      - name: registry-secret

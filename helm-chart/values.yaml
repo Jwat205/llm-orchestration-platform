@@ -1,0 +1,393 @@
+# Default values for llm-platform
+# Development/staging configuration
+replicaCount:
+  django: 2
+  fastapi: 3
+  fastapiGpu: 1
+  graphService: 1
+  documentProcessor: 1
+  trainingService: 1
+  billingService: 1
+  securityService: 1
+  monitoringService: 1
+
+image:
+  django:
+    repository: llm-platform/django-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  fastapi:
+    repository: llm-platform/fastapi-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  fastapiGpu:
+    repository: llm-platform/fastapi-service
+    tag: "gpu-latest"
+    pullPolicy: IfNotPresent
+  graphService:
+    repository: llm-platform/graph-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  documentProcessor:
+    repository: llm-platform/document-processor
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  trainingService:
+    repository: llm-platform/training-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  billingService:
+    repository: llm-platform/billing-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  securityService:
+    repository: llm-platform/security-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  monitoringService:
+    repository: llm-platform/monitoring-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: registry-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  django:
+    port: 8000
+  fastapi:
+    port: 8001
+  graphService:
+    port: 8002
+  documentProcessor:
+    port: 8003
+  trainingService:
+    port: 8004
+  billingService:
+    port: 8005
+  securityService:
+    port: 8006
+  monitoringService:
+    port: 8007
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: api.llm-platform.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: fastapi
+    - host: admin.llm-platform.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: django
+  tls:
+    - secretName: llm-platform-tls
+      hosts:
+        - api.llm-platform.com
+        - admin.llm-platform.com
+
+resources:
+  django:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  fastapi:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+  fastapiGpu:
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+      nvidia.com/gpu: 1
+    requests:
+      cpu: 2000m
+      memory: 8Gi
+      nvidia.com/gpu: 1
+  graphService:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  documentProcessor:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  trainingService:
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+      nvidia.com/gpu: 1
+    requests:
+      cpu: 2000m
+      memory: 8Gi
+      nvidia.com/gpu: 1
+  billingService:
+    limits:
+      cpu: 250m
+      memory: 512Mi
+    requests:
+      cpu: 125m
+      memory: 256Mi
+  securityService:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  monitoringService:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+autoscaling:
+  django:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  fastapi:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  fastapiGpu:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 85
+  graphService:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  billingService:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# GPU node configuration
+gpu:
+  enabled: true
+  nodeSelector:
+    accelerator: nvidia-tesla-v100
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+# Persistent storage
+persistence:
+  enabled: true
+  storageClass: "fast-ssd"
+  postgres:
+    size: 100Gi
+  redis:
+    size: 50Gi
+  models:
+    size: 500Gi
+
+# Configuration
+config:
+  django:
+    secretKey: "dev-secret-key-change-in-production"
+    debug: true
+    allowedHosts: "*"
+  database:
+    host: "postgres-service"
+    port: "5432"
+    name: "llm_platform_dev"
+    user: "llm_user"
+    password: "dev_password"
+    ssl: "disable"
+    maxConnections: "50"
+  redis:
+    host: "redis-service"
+    port: "6379"
+    password: "dev_redis_password"
+    ssl: "false"
+    maxConnections: "100"
+  api:
+    rateLimit: "100"
+    maxTokens: "4096"
+    corsOrigins: "*"
+    environment: "development"
+  models:
+    defaultModel: "llama-2-7b"
+    cacheSize: "5GB"
+    gpuMemoryFraction: "0.8"
+  security:
+    jwtExpiry: "3600"
+    refreshTokenExpiry: "604800"
+    passwordMinLength: "8"
+    mfaEnabled: false
+    auditLogging: false
+  monitoring:
+    metricsEnabled: true
+    tracingEnabled: true
+    logLevel: "DEBUG"
+    retentionDays: "7"
+  billing:
+    stripeWebhookSecret: "whsec_dev_key"
+    defaultCurrency: "USD"
+  embedding:
+    defaultModel: "all-MiniLM-L6-v2"
+    maxBatchSize: "100"
+    cacheSize: "1GB"
+  graph:
+    neo4jUri: "bolt://neo4j-service:7687"
+    neo4jUser: "neo4j"
+    neo4jPassword: "dev_neo4j_password"
+    maxHops: "3"
+  training:
+    maxJobs: "5"
+    defaultGpuMemory: "8GB"
+    checkpointPath: "/app/checkpoints"
+
+# External dependencies
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "secure_password"
+    username: "llm_user"
+    password: "secure_password"
+    database: "llm_platform"
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "redis_password"
+  master:
+    persistence:
+      enabled: true
+      size: 50Gi
+
+nginx:
+  enabled: false
+
+# Monitoring and Observability
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: "15d"
+    storage: "50Gi"
+    scrapeInterval: "15s"
+  grafana:
+    enabled: true
+    adminPassword: "admin123"
+    persistence:
+      enabled: true
+      size: "10Gi"
+    plugins:
+      - grafana-piechart-panel
+      - grafana-worldmap-panel
+  alerting:
+    enabled: false
+    slackWebhook: ""
+    pagerdutyKey: ""
+
+observability:
+  logging:
+    enabled: false
+    elasticsearch:
+      enabled: false
+      replicas: 1
+      storage: "50Gi"
+    kibana:
+      enabled: false
+    logstash:
+      enabled: false
+  tracing:
+    enabled: false
+    jaeger:
+      enabled: false
+      storage: "20Gi"
+    
+# Security configurations
+security:
+  podSecurityPolicy:
+    enabled: false
+  networkPolicies:
+    enabled: false
+  rbac:
+    enabled: true
+  secrets:
+    encrypted: false
+    rotationEnabled: false
+  backup:
+    enabled: false
+    schedule: "0 2 * * *"
+    retention: "7d"
+    storage: "100Gi"
+
+# Additional services
+additionalServices:
+  neo4j:
+    enabled: false
+    auth:
+      password: "dev_neo4j_password"
+    persistence:
+      size: "50Gi"
+  elasticsearch:
+    enabled: false
+    replicas: 1
+    storage: "50Gi"
+  kibana:
+    enabled: false

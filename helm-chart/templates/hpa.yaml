@@ -1,0 +1,173 @@
+{{- if .Values.autoscaling.django.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-django
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+    component: django
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "llm-platform.fullname" . }}-django
+  minReplicas: {{ .Values.autoscaling.django.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.django.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.django.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.django.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.django.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.django.targetMemoryUtilizationPercentage }}
+    {{- end }}
+---
+{{- end }}
+
+{{- if .Values.autoscaling.fastapi.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-fastapi
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+    component: fastapi
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "llm-platform.fullname" . }}-fastapi
+  minReplicas: {{ .Values.autoscaling.fastapi.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.fastapi.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.fastapi.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.fastapi.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.fastapi.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.fastapi.targetMemoryUtilizationPercentage }}
+    {{- end }}
+---
+{{- end }}
+
+{{- if .Values.autoscaling.fastapiGpu.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-fastapi-gpu
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+    component: fastapi-gpu
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "llm-platform.fullname" . }}-fastapi-gpu
+  minReplicas: {{ .Values.autoscaling.fastapiGpu.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.fastapiGpu.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.fastapiGpu.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.fastapiGpu.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.fastapiGpu.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.fastapiGpu.targetMemoryUtilizationPercentage }}
+    {{- end }}
+---
+{{- end }}
+
+{{- if .Values.autoscaling.graphService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-graph-service
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+    component: graph-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "llm-platform.fullname" . }}-graph-service
+  minReplicas: {{ .Values.autoscaling.graphService.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.graphService.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.graphService.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.graphService.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.graphService.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.graphService.targetMemoryUtilizationPercentage }}
+    {{- end }}
+---
+{{- end }}
+
+{{- if .Values.autoscaling.billingService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-billing-service
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+    component: billing-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "llm-platform.fullname" . }}-billing-service
+  minReplicas: {{ .Values.autoscaling.billingService.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.billingService.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.billingService.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.billingService.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.billingService.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.billingService.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

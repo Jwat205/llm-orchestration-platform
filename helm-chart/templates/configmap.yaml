@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "llm-platform.fullname" . }}-config
+  labels:
+    {{- include "llm-platform.labels" . | nindent 4 }}
+data:
+  # Django Configuration
+  DJANGO_DEBUG: {{ .Values.config.django.debug | quote }}
+  DJANGO_ALLOWED_HOSTS: {{ .Values.config.django.allowedHosts | quote }}
+  
+  # Database Configuration
+  DATABASE_HOST: {{ .Values.config.database.host | quote }}
+  DATABASE_PORT: {{ .Values.config.database.port | quote }}
+  DATABASE_NAME: {{ .Values.config.database.name | quote }}
+  DATABASE_USER: {{ .Values.config.database.user | quote }}
+  DATABASE_SSL: {{ .Values.config.database.ssl | quote }}
+  DATABASE_MAX_CONNECTIONS: {{ .Values.config.database.maxConnections | quote }}
+  
+  # Redis Configuration
+  REDIS_HOST: {{ .Values.config.redis.host | quote }}
+  REDIS_PORT: {{ .Values.config.redis.port | quote }}
+  REDIS_SSL: {{ .Values.config.redis.ssl | quote }}
+  REDIS_MAX_CONNECTIONS: {{ .Values.config.redis.maxConnections | quote }}
+  
+  # API Configuration
+  API_RATE_LIMIT: {{ .Values.config.api.rateLimit | quote }}
+  API_MAX_TOKENS: {{ .Values.config.api.maxTokens | quote }}
+  API_CORS_ORIGINS: {{ .Values.config.api.corsOrigins | quote }}
+  API_ENVIRONMENT: {{ .Values.config.api.environment | quote }}
+  
+  # Model Configuration
+  MODELS_DEFAULT_MODEL: {{ .Values.config.models.defaultModel | quote }}
+  MODELS_CACHE_SIZE: {{ .Values.config.models.cacheSize | quote }}
+  MODELS_GPU_MEMORY_FRACTION: {{ .Values.config.models.gpuMemoryFraction | quote }}
+  
+  # Security Configuration
+  SECURITY_JWT_EXPIRY: {{ .Values.config.security.jwtExpiry | quote }}
+  SECURITY_REFRESH_TOKEN_EXPIRY: {{ .Values.config.security.refreshTokenExpiry | quote }}
+  SECURITY_PASSWORD_MIN_LENGTH: {{ .Values.config.security.passwordMinLength | quote }}
+  SECURITY_MFA_ENABLED: {{ .Values.config.security.mfaEnabled | quote }}
+  SECURITY_AUDIT_LOGGING: {{ .Values.config.security.auditLogging | quote }}
+  
+  # Monitoring Configuration
+  MONITORING_METRICS_ENABLED: {{ .Values.config.monitoring.metricsEnabled | quote }}
+  MONITORING_TRACING_ENABLED: {{ .Values.config.monitoring.tracingEnabled | quote }}
+  MONITORING_LOG_LEVEL: {{ .Values.config.monitoring.logLevel | quote }}
+  MONITORING_RETENTION_DAYS: {{ .Values.config.monitoring.retentionDays | quote }}
+  
+  # Billing Configuration
+  BILLING_DEFAULT_CURRENCY: {{ .Values.config.billing.defaultCurrency | quote }}
+  
+  # Embedding Configuration
+  EMBEDDING_DEFAULT_MODEL: {{ .Values.config.embedding.defaultModel | quote }}
+  EMBEDDING_MAX_BATCH_SIZE: {{ .Values.config.embedding.maxBatchSize | quote }}
+  EMBEDDING_CACHE_SIZE: {{ .Values.config.embedding.cacheSize | quote }}
+  
+  # Graph Configuration
+  GRAPH_NEO4J_URI: {{ .Values.config.graph.neo4jUri | quote }}
+  GRAPH_NEO4J_USER: {{ .Values.config.graph.neo4jUser | quote }}
+  GRAPH_MAX_HOPS: {{ .Values.config.graph.maxHops | quote }}
+  
+  # Training Configuration
+  TRAINING_MAX_JOBS: {{ .Values.config.training.maxJobs | quote }}
+  TRAINING_DEFAULT_GPU_MEMORY: {{ .Values.config.training.defaultGpuMemory | quote }}
+  TRAINING_CHECKPOINT_PATH: {{ .Values.config.training.checkpointPath | quote }}

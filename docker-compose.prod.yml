@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # Load Balancer - Nginx
+  nginx:
+    image: nginx:alpine
+    container_name: llm-api-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - fastapi-1
+      - fastapi-2
+      - fastapi-3
+    restart: unless-stopped
+    networks:
+      - llm-network
+
+  # FastAPI Service - Instance 1
+  fastapi-1:
+    build:
+      context: ./fastapi_service
+      dockerfile: Dockerfile
+    container_name: llm-api-fastapi-1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:dev_password@postgres:5432/llm_api
+      - WORKERS=2
+      - PORT=8001
+    expose:
+      - "8001"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # FastAPI Service - Instance 2
+  fastapi-2:
+    build:
+      context: ./fastapi_service
+      dockerfile: Dockerfile
+    container_name: llm-api-fastapi-2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:dev_password@postgres:5432/llm_api
+      - WORKERS=2
+      - PORT=8002
+    expose:
+      - "8002"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # FastAPI Service - Instance 3
+  fastapi-3:
+    build:
+      context: ./fastapi_service
+      dockerfile: Dockerfile
+    container_name: llm-api-fastapi-3
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:dev_password@postgres:5432/llm_api
+      - WORKERS=2
+      - PORT=8003
+    expose:
+      - "8003"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: llm-api-postgres
+    environment:
+      POSTGRES_DB: llm_api
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: llm-api-redis
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - llm-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  llm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
