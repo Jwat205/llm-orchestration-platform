@@ -19,18 +19,22 @@ class Settings(BaseSettings):
     DJANGO_AUTH_URL: str         = Field(default="http://localhost:8000/api/auth/internal/validate-token/", env="DJANGO_AUTH_URL")
     JWT_SECRET_KEY:  str         = Field(default="insecure-dev-key",        env="JWT_SECRET_KEY")
 
-    # Vector store (required)
-    pinecone_api_key: str         = Field(..., env="PINECONE_API_KEY")
-    pinecone_env:     str         = Field(..., env="PINECONE_ENV")
-    pinecone_index:   str         = Field(..., env="PINECONE_INDEX")
+    # Vector store (optional for local dev)
+    pinecone_api_key: Optional[str] = Field(default=None, env="PINECONE_API_KEY")
+    pinecone_env:     Optional[str] = Field(default=None, env="PINECONE_ENV")
+    pinecone_index:   Optional[str] = Field(default=None, env="PINECONE_INDEX")
 
-    # Neo4j (required)
-    neo4j_uri:      str           = Field(..., env="NEO4J_URI")
-    neo4j_user:     str           = Field(..., env="NEO4J_USER")
-    neo4j_password: str           = Field(..., env="NEO4J_PASSWORD")
+    # Neo4j (optional for local dev)
+    neo4j_uri:      Optional[str] = Field(default=None, env="NEO4J_URI")
+    neo4j_user:     Optional[str] = Field(default=None, env="NEO4J_USER")
+    neo4j_password: Optional[str] = Field(default=None, env="NEO4J_PASSWORD")
 
-    # Auth (required)
-    api_key:        str           = Field(..., env="API_KEY")
+    # Auth
+    api_key:        str           = Field(default="dev-api-key", env="API_KEY")
+
+    # Ollama / model config
+    ollama_base_url: str          = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
+    default_model:   str          = Field(default="llama3.1:8b", env="DEFAULT_MODEL")
 
     class Config:
         env_file  = dotenv_path

@@ -1,5 +1,6 @@
 import threading
 import os
+import time
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from app.models.chat import ChatCompletionResponse, ChatCompletionChoice, ChatCompletionChunk, Usage
@@ -88,7 +89,7 @@ class ModelManager:
         return ChatCompletionResponse(
             id="local-chatcmpl-1",
             object="chat.completion",
-            created=int(torch.time.time()),
+            created=int(time.time()),
             model=self.model_name,
             choices=[choice],
             usage=usage

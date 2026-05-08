@@ -81,12 +81,20 @@ services:
       - "5679:5679"  # Debug port
     environment:
       - DEBUG=True
+      - ENV=development
       - DATABASE_URL=postgresql://postgres:dev_password@postgres:5432/llm_api
       - REDIS_URL=redis://:dev_password@redis:6379/0
       - DJANGO_SERVICE_URL=http://django:8000
+      - DJANGO_AUTH_URL=http://django:8000/api/auth/internal/validate-token/
       - MODEL_CACHE_DIR=/app/models
       - HF_HOME=/app/huggingface_cache
       - TRANSFORMERS_CACHE=/app/transformers_cache
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - DEFAULT_MODEL=gemma3:4b
+      - API_KEY=dev-api-key
+      - JWT_SECRET_KEY=dev-jwt-secret-change-in-production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

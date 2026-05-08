@@ -4,18 +4,21 @@ Supports various model types including Transformers, Llama, and other local mode
 """
 
 import os
-import torch
 import aiohttp
 import json
 from typing import Dict, List, Optional, AsyncGenerator, Union
-from transformers import (
-    AutoTokenizer, AutoModelForCausalLM,
-    pipeline, TextGenerationPipeline
-)
 import structlog
 from dataclasses import dataclass
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, TextGenerationPipeline
+    _TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    torch = None
+    _TRANSFORMERS_AVAILABLE = False
 
 logger = structlog.get_logger()
 
@@ -40,7 +43,7 @@ class ModelManager:
         self.tokenizers: Dict[str, AutoTokenizer] = {}
         self.configs: Dict[str, ModelConfig] = {}
         self.executor = ThreadPoolExecutor(max_workers=2)
-        self.ollama_base_url = "http://localhost:11434"
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
         # Define available models
         self.available_models = {
@@ -166,9 +169,9 @@ class ModelManager:
             return False
 
     def _load_default_model(self):
-        """Load a default lightweight model for immediate availability"""
+        """Load a default model for immediate availability"""
         try:
-            default_model = "distilgpt2"
+            default_model = os.getenv("DEFAULT_MODEL", "gemma3:4b")
             logger.info("Loading default model", model=default_model)
             self.load_model(default_model)
             logger.info("Default model loaded successfully", model=default_model)
@@ -255,9 +258,11 @@ class ModelManager:
 
     def _get_device(self) -> str:
         """Determine the best available device"""
+        if not _TRANSFORMERS_AVAILABLE:
+            return "cpu"
         if torch.cuda.is_available():
             return "cuda"
-        elif torch.backends.mps.is_available():  # Apple Silicon
+        elif torch.backends.mps.is_available():
             return "mps"
         else:
             return "cpu"
