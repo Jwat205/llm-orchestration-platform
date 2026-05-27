@@ -46,20 +46,20 @@ async def dev_chat_completions(request: Request, payload: ChatCompletionRequest)
 @router.post(
     "/completions",
     response_model=ChatCompletionResponse,
-    dependencies=[Depends(authenticate_user)],#, # Depends(check_rate_limit)],
+    dependencies=[Depends(authenticate_user), Depends(check_rate_limit)],
     status_code=status.HTTP_200_OK,
 )
 async def chat_completions(
     request: Request,
     payload: ChatCompletionRequest,
     stream: bool = False,
+    user=Depends(authenticate_user),
 ):
     """
     OpenAI-compatible chat completion endpoint.
     - If `?stream=true`, returns an SSE stream of ChatCompletionChunk events.
     - Otherwise returns full ChatCompletionResponse JSON.
     """
-    user = await authenticate_user(request)
     logger.info("chat.request", user_id=user.user_id, model=payload.model, stream=stream)
 
     if stream:

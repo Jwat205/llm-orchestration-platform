@@ -54,3 +54,14 @@ async def require_permissions(required_permission: str, user=Depends(authenticat
     if required_permission not in getattr(user, 'permissions', []):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return True
+
+def require_role(role: str):
+    async def _check(user=Depends(authenticate_user)):
+        user_permissions = getattr(user, 'permissions', [])
+        if 'admin' in user_permissions or role in user_permissions:
+            return user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Requires {role} permission",
+        )
+    return _check

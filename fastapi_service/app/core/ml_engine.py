@@ -1,4 +1,4 @@
-import threading
+﻿import threading
 import os
 import time
 import torch
@@ -32,9 +32,14 @@ class ModelManager:
         # Load tokenizer & model onto the right device
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = (
-            AutoModelForCausalLM.from_pretrained(self.model_name)
+            AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                low_cpu_mem_usage=True,
+            )
             .to(self.device)
         )
+        self.model.eval()
 
     def swap_model(self, new_model_name: str):
         """
@@ -48,7 +53,10 @@ class ModelManager:
         List currently loaded (or supported) models.
         """
         return [self.model_name]
-    
+
+    def get_model_name(self) -> str:
+        return self.model_name
+
     def load_model(self, model_name: str):
         """
         Loads a new model and tokenizer by name.
@@ -62,17 +70,20 @@ class ModelManager:
 
     async def generate_completion(self, payload: "ChatCompletionRequest") -> ChatCompletionResponse:
         """
-        Produce a single, batched completion matching OpenAI’s format.
+        Produce a single, batched completion matching OpenAI's format.
         """
         prompt = payload.messages[-1].content
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
-        output_ids = self.model.generate(
-            **inputs,
-            max_new_tokens=payload.max_tokens,
-            temperature=payload.temperature,
-            do_sample=True
-        )
+        with torch.no_grad():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=payload.max_tokens,
+                temperature=payload.temperature,
+                do_sample=True
+            )
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
         text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
         # Here we simply wrap it into the OpenAI-style response
@@ -119,4 +130,28 @@ class ModelManager:
                 delta={"role": "assistant", "content": tk + (" " if idx < len(tokens)-1 else "")},
                 finish_reason=None
             )
-        # final “[DONE]” is emitted by the endpoint itself
+        # final "[DONE]" is emitted by the endpoint itself
+
+    def generate_batch(self, prompts: list, max_tokens: int = 100, temperature: float = 1.0) -> list:
+        self.tokenizer.padding_side = "left"
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        inputs = self.tokenizer(
+            prompts, return_tensors="pt", padding=True, truncation=True, max_length=512
+        ).to(self.device)
+        with torch.no_grad():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                do_sample=temperature > 0,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+        results = []
+        input_len = inputs.input_ids.shape[1]
+        for out in output_ids:
+            text = self.tokenizer.decode(out[input_len:], skip_special_tokens=True)
+            results.append(text.strip())
+        return results

@@ -15,7 +15,14 @@ X_FRAME_OPTIONS = 'DENY'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Database connection pooling for production
-DATABASES['default']['CONN_MAX_AGE'] = 60
+DATABASES['default'].update({
+    'CONN_MAX_AGE': 300,
+    'OPTIONS': {
+        'connect_timeout': 10,
+    },
+})
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 # Logging configuration for production
 LOGGING = {

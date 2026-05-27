@@ -57,7 +57,7 @@ class APIKeyListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return APIKey.objects.filter(user=self.request.user)
+        return APIKey.objects.filter(user=self.request.user).select_related('user')
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -80,6 +80,7 @@ class ValidateTokenView(APIView):
         try:
             validated_token = jwt_auth.get_validated_token(token)
             user = jwt_auth.get_user(validated_token)
+            user = user.__class__.objects.prefetch_related('user_permissions', 'groups__permissions').get(pk=user.pk)
             return Response({
                 "valid": True,
                 "user_id": user.id,

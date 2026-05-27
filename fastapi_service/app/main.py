@@ -27,8 +27,20 @@ structlog.configure(
 
 logger = structlog.get_logger()
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.services.inference_service import start_batch_processor, stop_batch_processor
+    from app.services.cache_service import close_redis
+    await start_batch_processor()
+    yield
+    await stop_batch_processor()
+    await close_redis()
+
 # Create FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="LLM API Service",
     description="OpenAI-compatible LLM API service",
     version="1.0.0",

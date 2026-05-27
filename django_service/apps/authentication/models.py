@@ -8,6 +8,12 @@ class APIKey(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['key']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+
     def save(self, *args, **kwargs):
         if not self.key:
             self.key = secrets.token_urlsafe(48)[:64]  # Random secure key

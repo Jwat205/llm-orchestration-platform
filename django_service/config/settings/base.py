@@ -74,12 +74,29 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "llm_pass"),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "OPTIONS": {
+            "connect_timeout": 10,
+        },
     }
 }
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379/1"),
+        "OPTIONS": {
+            "socket_connect_timeout": 5,
+            "socket_timeout": 5,
+        },
+        "KEY_PREFIX": "llm_api",
+        "TIMEOUT": 300,
+    }
+}
 
 AUTH_USER_MODEL = "users.User"
 LANGUAGE_CODE = "en-us"
@@ -101,7 +118,8 @@ REST_FRAMEWORK = {
     'apps.authentication.throttling.UserRateThrottle',
 ],
 'DEFAULT_THROTTLE_RATES': {
-    'user': '100/hour',
+    'user': '1000/hour',
+    'anon': '100/hour',
 },
 
 }

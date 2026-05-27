@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ...models.chat import ChatCompletionRequest, ChatCompletionResponse
 from ...api.v1.streaming import event_generator
-from ..dependencies import get_current_user, rate_limiter
+from ..dependencies import authenticate_user, check_rate_limit
 import structlog
 
 logger = structlog.get_logger()
@@ -13,13 +13,13 @@ router = APIRouter(prefix="/v1/chat", tags=["chat"])
     "/completions",
     response_model=ChatCompletionResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(rate_limiter)],  # initial request‐level throttle
+    dependencies=[Depends(check_rate_limit)],  # initial request‐level throttle
 )
 async def chat_completions(
     request: Request,
     payload: ChatCompletionRequest,
     stream: bool = False,
-    user=Depends(get_current_user),
+    user=Depends(authenticate_user),
 ):
     """
     Combined handler for chat completions:
