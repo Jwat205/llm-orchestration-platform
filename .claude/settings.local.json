@@ -1,6 +1,9 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
+      "Read",
       "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" elasticache describe-replication-groups --replication-group-id llm-redis --query \"ReplicationGroups[0].{Status:Status,Engine:Engine,NodeType:CacheNodeType,NumNodes:MemberClusters}\" --output table)",
       "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs update-service --cluster llm-microservices --service fastapi-service --desired-count 0)",
       "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs update-service --cluster llm-microservices --service django-service --desired-count 0)",
@@ -9,7 +12,26 @@
       "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" ecs delete-cluster --cluster llm-microservices)",
       "Bash(\"C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" elbv2 delete-load-balancer --load-balancer-arn arn:aws:elasticloadbalancing:us-east-1:164334672247:loadbalancer/app/llm-api-alb/e3d9e9f6ba103d8b)",
       "Bash(dir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(Get-ChildItem -Path \".\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(xargs grep -l \"services:\")",
+      "Bash(docker --version)",
+      "Bash(pip list *)",
+      "Bash(findstr -i \"fastapi django redis jwt locust\")",
+      "Bash(python tests/test_resume_claims.py)",
+      "Bash(python -c \"import sys; print\\(sys.stdout.encoding\\)\")",
+      "Bash(python -X utf8 tests/test_resume_claims.py)",
+      "Skill(update-config)",
+      "Bash(python -m py_compile fastapi_service/app/services/cache_service.py fastapi_service/app/services/inference_service.py fastapi_service/app/api/v1/chat.py fastapi_service/app/core/ml_engine.py fastapi_service/app/main.py fastapi_service/app/core/django_client.py fastapi_service/app/api/dependencies.py)",
+      "PowerShell(head *)",
+      "PowerShell(pip install *)",
+      "PowerShell(cd \"C:\\\\Users\\\\LookO\\\\llm-orchestration-platform\"; $env:PYTHONIOENCODING=\"utf-8\"; python benchmark_local.py 2>&1)",
+      "Bash(git commit *)",
+      "Bash(python -c \"import fpdf; print\\('fpdf ok'\\)\")",
+      "Bash(python -c \"import reportlab; print\\('reportlab ok'\\)\")",
+      "Bash(python -c \"import fpdf2; print\\('fpdf2 ok'\\)\")",
+      "Bash(python *)"
     ],
     "deny": [],
     "ask": []

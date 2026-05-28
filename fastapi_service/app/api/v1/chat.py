@@ -10,7 +10,7 @@ from ...api.v1.streaming import event_generator
 from ..dependencies import authenticate_user, check_rate_limit
 
 logger = structlog.get_logger()
-router = APIRouter(prefix="/v1/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Add a simple health check endpoint
 @router.get("/health")
@@ -66,7 +66,7 @@ async def chat_completions(
         # Server-Sent Events branch
         print("Streaming enabled")
         return StreamingResponse(
-            event_generator(request, payload, user.user_id),
+            event_generator(request, payload, user),
             media_type="text/event-stream",
         )
 
