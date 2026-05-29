@@ -381,59 +381,129 @@ def on_test_stop(environment, **kwargs):
 
 # Custom task sets for different scenarios
 class NormalOperationsTaskSet(HttpUser):
-    """Normal business operations task set"""
-    
-    tasks = {
-        "chat_completion_short": 40,
-        "chat_completion_long": 20,
-        "streaming_chat_completion": 15,
-        "embeddings_request": 10,
-        "models_list": 10,
-        "health_check": 5
-    }
-    
+    """Normal business operations — steady-state traffic mix."""
+
+    wait_time = between(1, 3)
+
+    def on_start(self):
+        self.api_key = "test_api_key_123"
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        self.models = ["gpt-3.5-turbo", "gpt-4", "claude-2", "llama-2-7b", "llama-2-13b"]
+        self.sample_messages = [
+            "Hello, how are you today?",
+            "Explain quantum computing in simple terms.",
+            "Write a short story about a robot.",
+            "What are the benefits of renewable energy?",
+            "Help me debug this Python code.",
+        ]
+        self.conversation_contexts = [
+            [{"role": "system", "content": "You are a helpful assistant."}],
+            [],
+        ]
+
+    @task(40)
     def chat_completion_short(self):
         LLMPlatformUser.chat_completion_short(self)
-    
+
+    @task(20)
     def chat_completion_long(self):
         LLMPlatformUser.chat_completion_long(self)
-    
+
+    @task(15)
     def streaming_chat_completion(self):
         LLMPlatformUser.streaming_chat_completion(self)
-    
+
+    @task(10)
     def embeddings_request(self):
         LLMPlatformUser.embeddings_request(self)
-    
+
+    @task(10)
     def models_list(self):
         LLMPlatformUser.models_list(self)
-    
+
+    @task(5)
     def health_check(self):
         LLMPlatformUser.health_check(self)
 
 
 class PeakHoursTaskSet(HttpUser):
-    """Peak hours with higher load"""
-    
-    wait_time = between(0.5, 2)  # Faster requests during peak
-    
-    tasks = {
-        "chat_completion_short": 50,
-        "streaming_chat_completion": 30,
-        "embeddings_request": 15,
-        "models_list": 5
-    }
-    
+    """Peak hours — faster cadence, inference-heavy mix."""
+
+    wait_time = between(0.5, 2)
+
+    def on_start(self):
+        self.api_key = "test_api_key_123"
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        self.models = ["gpt-3.5-turbo", "gpt-4", "claude-2", "llama-2-7b", "llama-2-13b"]
+        self.sample_messages = [
+            "Hello, how are you today?",
+            "Explain quantum computing in simple terms.",
+            "Write a short story about a robot.",
+            "What are the benefits of renewable energy?",
+            "Help me debug this Python code.",
+        ]
+        self.conversation_contexts = [
+            [{"role": "system", "content": "You are a helpful assistant."}],
+            [],
+        ]
+
+    @task(50)
     def chat_completion_short(self):
         LLMPlatformUser.chat_completion_short(self)
-    
+
+    @task(30)
     def streaming_chat_completion(self):
         LLMPlatformUser.streaming_chat_completion(self)
-    
+
+    @task(15)
     def embeddings_request(self):
         LLMPlatformUser.embeddings_request(self)
-    
+
+    @task(5)
     def models_list(self):
         LLMPlatformUser.models_list(self)
+
+
+class NonInferenceLatencyUser(HttpUser):
+    """
+    Bullet 1 validation: non-inference endpoints must stay under 100ms.
+    Hits only health, monitoring/health, and metrics — no model calls.
+    """
+
+    wait_time = between(0.1, 0.5)
+
+    def on_start(self):
+        self.headers = {"Authorization": "Bearer test_api_key_123"}
+
+    @task(5)
+    def root_health(self):
+        with self.client.get("/health", catch_response=True, name="health") as r:
+            if r.elapsed.total_seconds() * 1000 > 100:
+                r.failure(f"Latency {r.elapsed.total_seconds()*1000:.1f}ms exceeds 100ms SLA")
+            elif r.status_code == 200:
+                r.success()
+
+    @task(3)
+    def monitoring_health(self):
+        with self.client.get(
+            "/api/v1/monitoring/health", headers=self.headers,
+            catch_response=True, name="monitoring/health"
+        ) as r:
+            if r.elapsed.total_seconds() * 1000 > 100:
+                r.failure(f"Latency {r.elapsed.total_seconds()*1000:.1f}ms exceeds 100ms SLA")
+            elif r.status_code == 200:
+                r.success()
+
+    @task(2)
+    def monitoring_metrics(self):
+        with self.client.get(
+            "/api/v1/monitoring/metrics", headers=self.headers,
+            catch_response=True, name="monitoring/metrics"
+        ) as r:
+            if r.elapsed.total_seconds() * 1000 > 100:
+                r.failure(f"Latency {r.elapsed.total_seconds()*1000:.1f}ms exceeds 100ms SLA")
+            elif r.status_code == 200:
+                r.success()
 
 
 if __name__ == "__main__":

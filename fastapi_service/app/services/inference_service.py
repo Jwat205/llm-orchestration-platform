@@ -71,7 +71,7 @@ async def _batch_processor_loop():
             temp = batch[0].temperature or 1.0
             texts = await loop.run_in_executor(None, lambda: mgr.generate_batch(prompts, max_t, temp))
 
-            for i, (req_item, fut_item) in enumerate(zip(batch, futures)):
+            for i, (_, fut_item) in enumerate(zip(batch, futures)):
                 if not fut_item.done():
                     result = _build_response(mgr, prompts[i], texts[i])
                     fut_item.set_result(result)

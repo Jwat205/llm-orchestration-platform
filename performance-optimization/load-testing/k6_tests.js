@@ -16,6 +16,13 @@ const completionRate = new Rate('completion_success');
 const streamingLatency = new Trend('streaming_first_token_latency');
 const totalRequests = new Counter('total_requests');
 
+// Bullet 1: non-inference latency (<100ms claim)
+const nonInferenceLatency = new Trend('non_inference_latency');
+
+// Bullet 4: cache hit vs miss latency (200ms → <50ms claim)
+const cacheMissLatency = new Trend('cache_miss_latency');
+const cacheHitLatency = new Trend('cache_hit_latency');
+
 // Test configuration
 export const options = {
   scenarios: {
@@ -65,13 +72,37 @@ export const options = {
       gracefulRampDown: '1m',
       tags: { test_type: 'soak' },
     },
+
+    // Bullet 1: non-inference latency validation (<100ms)
+    non_inference: {
+      executor: 'constant-vus',
+      vus: 50,
+      duration: '2m',
+      gracefulRampDown: '10s',
+      tags: { test_type: 'non_inference' },
+      exec: 'nonInferenceTest',
+    },
+
+    // Bullet 4: cache performance validation (200ms → <50ms)
+    cache_performance: {
+      executor: 'constant-vus',
+      vus: 10,
+      duration: '2m',
+      gracefulRampDown: '10s',
+      tags: { test_type: 'cache' },
+      exec: 'cachePerformanceTest',
+    },
   },
   
   thresholds: {
-    http_req_duration: ['p(95)<5000'], // 95% of requests under 5s
-    api_errors: ['rate<0.05'], // Error rate under 5%
-    completion_success: ['rate>0.95'], // 95% completion success
-    tokens_per_second: ['avg>5'], // At least 5 tokens per second average
+    http_req_duration: ['p(95)<5000'],
+    api_errors: ['rate<0.05'],
+    completion_success: ['rate>0.95'],
+    tokens_per_second: ['avg>5'],
+    // Bullet 1: non-inference endpoints must stay under 100ms
+    non_inference_latency: ['p(95)<100'],
+    // Bullet 4: cached responses must be under 50ms
+    cache_hit_latency: ['p(95)<50'],
   },
 };
 
@@ -406,6 +437,84 @@ export default function() {
   
   // Realistic user think time
   sleep(randomIntBetween(1, 5));
+}
+
+/**
+ * Bullet 1: Non-inference latency test
+ * Validates health, monitoring/health, and monitoring/metrics stay under 100ms.
+ */
+export function nonInferenceTest() {
+  const endpoints = [
+    { url: `${BASE_URL}/health`, name: 'health' },
+    { url: `${BASE_URL}/api/v1/monitoring/health`, name: 'monitoring/health' },
+    { url: `${BASE_URL}/api/v1/monitoring/metrics`, name: 'monitoring/metrics' },
+  ];
+
+  for (const endpoint of endpoints) {
+    const start = Date.now();
+    const response = http.get(endpoint.url, { headers, timeout: '5s', tags: { name: endpoint.name } });
+    const duration = Date.now() - start;
+
+    nonInferenceLatency.add(duration);
+    totalRequests.add(1);
+
+    check(response, {
+      [`${endpoint.name} status 200`]: (r) => r.status === 200,
+      [`${endpoint.name} under 100ms`]: () => duration < 100,
+    });
+
+    if (response.status !== 200) errorRate.add(1);
+  }
+
+  sleep(randomIntBetween(1, 3));
+}
+
+/**
+ * Bullet 4: Cache performance test
+ * Makes the same request twice — first is a cache miss, second is a cache hit.
+ * Validates that cache hits come back under 50ms.
+ */
+export function cachePerformanceTest() {
+  const prompt = randomItem(testPrompts);
+  const model = randomItem(models);
+
+  const payload = JSON.stringify({
+    model: model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 50,
+    temperature: 0.0, // deterministic — ensures cache key matches on repeat
+  });
+
+  const reqParams = { headers, timeout: '60s' };
+
+  // First request — cache miss
+  const missStart = Date.now();
+  const missResponse = http.post(`${BASE_URL}/v1/chat/completions`, payload, reqParams);
+  const missDuration = Date.now() - missStart;
+  cacheMissLatency.add(missDuration);
+  totalRequests.add(1);
+
+  check(missResponse, {
+    'cache miss status 200': (r) => r.status === 200,
+  });
+
+  sleep(0.1);
+
+  // Second identical request — should be served from Redis cache
+  const hitStart = Date.now();
+  const hitResponse = http.post(`${BASE_URL}/v1/chat/completions`, payload, reqParams);
+  const hitDuration = Date.now() - hitStart;
+  cacheHitLatency.add(hitDuration);
+  totalRequests.add(1);
+
+  check(hitResponse, {
+    'cache hit status 200': (r) => r.status === 200,
+    'cache hit under 50ms': () => hitDuration < 50,
+  });
+
+  if (hitResponse.status !== 200) errorRate.add(1);
+
+  sleep(randomIntBetween(1, 3));
 }
 
 /**

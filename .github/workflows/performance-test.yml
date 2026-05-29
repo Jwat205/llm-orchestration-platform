@@ -114,11 +114,10 @@ jobs:
 
     - name: Run k6 performance test
       run: |
-        cd tests/load
         k6 run --vus=${{ github.event.inputs.users || 100 }} \
           --duration=${{ github.event.inputs.duration || 300 }}s \
           --out json=k6-results.json \
-          k6-script.js
+          performance-optimization/load-testing/k6_tests.js
 
     - name: Benchmark critical paths
       run: |
