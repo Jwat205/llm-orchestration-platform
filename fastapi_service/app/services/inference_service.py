@@ -5,7 +5,6 @@ from typing import Optional
 import httpx
 import structlog
 
-from app.core.ml_engine import ModelManager
 from app.core.model_registry import get_backend, resolve_model
 from app.models.chat import (
     ChatCompletionRequest,
@@ -46,12 +45,20 @@ async def stop_batch_processor():
 
 
 async def _batch_processor_loop():
-    mgr = ModelManager()
+    # Transformers backend is currently disconnected (see
+    # app/core/model_registry.py) so `entry.backend == "transformers"`
+    # never happens and `mgr` is only ever created if it's reactivated.
+    # Import + instantiate lazily to avoid loading a model (or requiring
+    # torch/transformers/accelerate) while this loop sits idle.
+    mgr = None
     while True:
         batch = []
         futures = []
         try:
             req, fut = await asyncio.wait_for(get_batch_queue().get(), timeout=1.0)
+            if mgr is None:
+                from app.backends_inactive.transformers.ml_engine import ModelManager
+                mgr = ModelManager()
             batch.append(req)
             futures.append(fut)
             deadline = time.monotonic() + BATCH_TIMEOUT
@@ -88,7 +95,7 @@ async def _batch_processor_loop():
                     fut_item.set_exception(e)
 
 
-def _build_response(mgr: ModelManager, prompt: str, text: str) -> ChatCompletionResponse:
+def _build_response(mgr, prompt: str, text: str) -> ChatCompletionResponse:
     choice = ChatCompletionChoice(
         index=0,
         message={"role": "assistant", "content": text},

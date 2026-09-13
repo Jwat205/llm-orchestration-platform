@@ -4,7 +4,12 @@ from typing import Dict, List
 from app.config import settings
 from app.core.backends.base import ModelBackend
 from app.core.backends.ollama_backend import OllamaBackend
-from app.core.backends.transformers_backend import TransformersBackend
+
+# The in-process Transformers backend lives in app/backends_inactive/transformers/
+# — fully wired and importable, but disconnected from the active registry
+# while this project focuses on the Ollama backend. To reactivate:
+#   from app.backends_inactive.transformers.transformers_backend import TransformersBackend
+# and re-add it to _STATIC_MODELS / _backends below.
 
 
 @dataclass(frozen=True)
@@ -15,20 +20,10 @@ class ModelEntry:
     label: str = ""      # display name for the picker
 
 
-# Statically known transformers models (loaded in-process on first use).
-# Ollama models are discovered dynamically from the Ollama server on top of
-# this, so companies can add new local models with `ollama pull` alone.
-_STATIC_MODELS: List[ModelEntry] = [
-    ModelEntry(
-        name=settings.transformers_default_model,
-        backend="transformers",
-        model_id=settings.transformers_default_model,
-        label=f"{settings.transformers_default_model} (local, in-process)",
-    ),
-]
+# Ollama models are discovered dynamically from the Ollama server.
+_STATIC_MODELS: List[ModelEntry] = []
 
 _backends: Dict[str, ModelBackend] = {
-    "transformers": TransformersBackend(),
     "ollama": OllamaBackend(),
 }
 

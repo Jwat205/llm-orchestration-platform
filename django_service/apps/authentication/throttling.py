@@ -2,7 +2,12 @@ from rest_framework.throttling import SimpleRateThrottle
 import redis
 from django.conf import settings
 
-redis_client = redis.StrictRedis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
+redis_client = redis.StrictRedis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    password=settings.REDIS_PASSWORD,
+    db=0,
+)
 
 class UserRateThrottle(SimpleRateThrottle):
     scope = 'user'

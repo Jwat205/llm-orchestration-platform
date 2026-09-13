@@ -34,6 +34,10 @@ class Settings(BaseSettings):
 
     # Ollama / model config
     ollama_base_url: str          = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
+    # Optional comma-separated list of additional Ollama instances to load-balance
+    # across (e.g. "http://host:11434,http://host:11435,http://host:11436").
+    # When unset, falls back to just `ollama_base_url` (single instance).
+    ollama_base_urls: Optional[str] = Field(default=None, env="OLLAMA_BASE_URLS")
     default_model:   str          = Field(default="llama3.1:8b", env="DEFAULT_MODEL")
 
     # In-process (transformers) model config — separate from DEFAULT_MODEL,
