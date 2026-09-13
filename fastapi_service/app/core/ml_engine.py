@@ -1,35 +1,54 @@
 ﻿import threading
 import os
 import time
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from app.models.chat import ChatCompletionResponse, ChatCompletionChoice, ChatCompletionChunk, Usage
 
 
 class ModelManager:
     """
-    Singleton manager for loading/swapping models and running inference (sync & streaming).
+    Manager for loading/swapping HuggingFace models and running inference
+    (sync & streaming). One instance holds exactly one loaded model; use
+    `ModelManager.for_model(name)` to reuse a cached instance per model name
+    instead of reloading weights on every call.
     """
-    _instance = None
+    _instances: dict = {}
     _lock = threading.Lock()
 
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._load_default()
-        return cls._instance
+    def __new__(cls, model_name: str = None):
+        # No-arg construction keeps old call sites (`ModelManager()`) working
+        # and returns the shared default-model instance.
+        from app.config import settings
 
+        key = model_name or settings.transformers_default_model
+        with cls._lock:
+            if key not in cls._instances:
+                inst = super().__new__(cls)
+                inst._load(key)
+                cls._instances[key] = inst
+        return cls._instances[key]
 
-    def _load_default(self):
+    @classmethod
+    def for_model(cls, model_name: str) -> "ModelManager":
+        return cls(model_name)
+
+    def _load(self, model_name: str):
         """
-        Load the default model from DEFAULT_MODEL env var (or fallback).
+        Load the given model (and tokenizer) onto the right device. Imports
+        torch/transformers lazily so companies that only use the Ollama
+        backend never need these (heavy) packages installed at all.
         """
-        self.model_name = os.getenv("DEFAULT_MODEL", "microsoft/DialoGPT-medium")
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as e:
+            raise RuntimeError(
+                "The transformers backend requires 'torch' and 'transformers' "
+                "to be installed (pip install torch transformers)."
+            ) from e
+
+        self.model_name = model_name
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # Load tokenizer & model onto the right device
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = (
             AutoModelForCausalLM.from_pretrained(
@@ -45,8 +64,7 @@ class ModelManager:
         """
         Swap in a different HuggingFace-style model at runtime.
         """
-        self.model_name = new_model_name
-        self._load_default()
+        self._load(new_model_name)
 
     def available_models(self) -> list[str]:
         """
@@ -72,6 +90,8 @@ class ModelManager:
         """
         Produce a single, batched completion matching OpenAI's format.
         """
+        import torch
+
         prompt = payload.messages[-1].content
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
@@ -133,6 +153,8 @@ class ModelManager:
         # final "[DONE]" is emitted by the endpoint itself
 
     def generate_batch(self, prompts: list, max_tokens: int = 100, temperature: float = 1.0) -> list:
+        import torch
+
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

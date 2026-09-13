@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     ollama_base_url: str          = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
     default_model:   str          = Field(default="llama3.1:8b", env="DEFAULT_MODEL")
 
+    # In-process (transformers) model config — separate from DEFAULT_MODEL,
+    # which names an Ollama tag, not a HuggingFace repo id.
+    transformers_default_model: str = Field(
+        default="microsoft/DialoGPT-medium", env="TRANSFORMERS_DEFAULT_MODEL"
+    )
+
     class Config:
         env_file  = dotenv_path
         case_sensitive = False

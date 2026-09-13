@@ -12,7 +12,7 @@ class DevUser:
         self.user_id = "dev-user-123"
         self.username = "dev-user"
         self.valid = True
-        self.permissions = ["chat", "embeddings", "documents"]
+        self.permissions = ["chat", "embeddings", "documents", "admin"]
 
 async def authenticate_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme)):
     # Development mode bypass

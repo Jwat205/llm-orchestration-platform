@@ -2,11 +2,13 @@
 Monitoring endpoints for API v1
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
 import structlog
 import time
+
+from app.api.dependencies import require_role
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -30,9 +32,9 @@ async def health_check():
         timestamp=time.time()
     )
 
-@router.get("/metrics", response_model=MetricsResponse)
+@router.get("/metrics", response_model=MetricsResponse, dependencies=[Depends(require_role("admin"))])
 async def get_metrics():
-    """Get system metrics."""
+    """Get system metrics. Admin-only: exposes internal operational data."""
     try:
         # Placeholder metrics
         return MetricsResponse(

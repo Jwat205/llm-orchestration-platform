@@ -6,6 +6,7 @@ import httpx
 import structlog
 
 from app.core.ml_engine import ModelManager
+from app.core.model_registry import get_backend, resolve_model
 from app.models.chat import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -120,19 +121,28 @@ async def generate_completion(req: ChatCompletionRequest) -> ChatCompletionRespo
          "content": m.content if hasattr(m, "content") else m["content"]}
         for m in req.messages
     ]
+    cache_key_model = req.model or "default"
     cached = await get_cached_response(
-        req.model or "default", messages_raw, req.temperature or 1.0, req.max_tokens or 100
+        cache_key_model, messages_raw, req.temperature or 1.0, req.max_tokens or 100
     )
     if cached:
         return ChatCompletionResponse(**cached)
 
-    loop = asyncio.get_event_loop()
-    fut = loop.create_future()
-    await get_batch_queue().put((req, fut))
-    result = await fut
+    entry = await resolve_model(cache_key_model)
+
+    if entry.backend == "transformers":
+        # Route through the batch processor, which coalesces concurrent
+        # requests against the same in-process model for better throughput.
+        loop = asyncio.get_event_loop()
+        fut = loop.create_future()
+        await get_batch_queue().put((req, fut))
+        result = await fut
+    else:
+        backend = get_backend(entry.backend)
+        result = await backend.generate(entry.model_id, req)
 
     await set_cached_response(
-        req.model or "default", messages_raw, req.temperature or 1.0, req.max_tokens or 100, result.dict()
+        cache_key_model, messages_raw, req.temperature or 1.0, req.max_tokens or 100, result.dict()
     )
     return result
 
@@ -146,6 +156,27 @@ async def log_to_billing(user_id: int, model: str, tokens: int):
 
 
 async def generate_completion_stream(req: ChatCompletionRequest):
-    resp = await generate_completion(req)
     from app.models.chat import ChatCompletionChunk
-    yield ChatCompletionChunk(**resp.dict())
+
+    entry = await resolve_model(req.model or "default")
+    backend = get_backend(entry.backend)
+    stream_id = f"chatcmpl-stream-{int(time.time())}"
+    index = 0
+
+    async for delta_text in backend.generate_stream(entry.model_id, req):
+        yield ChatCompletionChunk(
+            id=stream_id,
+            model=entry.model_id,
+            index=index,
+            delta={"role": "assistant", "content": delta_text},
+            finish_reason=None,
+        )
+        index += 1
+
+    yield ChatCompletionChunk(
+        id=stream_id,
+        model=entry.model_id,
+        index=index,
+        delta={},
+        finish_reason="stop",
+    )

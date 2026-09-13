@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import List, Optional
 
 # Token validation request
 class UserValidationRequest(BaseModel):
@@ -11,6 +11,7 @@ class UserValidationResponse(BaseModel):
     user_id: Optional[int]
     email: Optional[EmailStr]
     is_active: Optional[bool]
+    permissions: List[str] = []
 
 # Usage logging request
 class UsageLoggingRequest(BaseModel):
